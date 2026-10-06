@@ -8,10 +8,8 @@ import logging
 import logging.handlers
 import sys
 
-from aiohttp import web
-
-from . import __version__, autostart
-from .config import Config, config_dir, config_path, new_token, resolve_bind
+from . import __version__, autostart, listener
+from .config import Config, address_is_up, config_dir, config_path, new_token, resolve_bind
 from .herdr_client import HerdrClient, address_for_socket, discover_socket_path
 from .pairing import pair_uri, qr_ascii, qr_png
 from .server import Bridge, make_app
@@ -54,13 +52,15 @@ def cmd_serve(args: argparse.Namespace) -> None:
     setup_logging(args.verbose)
     host = resolve_bind(cfg)
     address = herdr_address(cfg)
-    log.info("herdr-bridge %s: listening on %s:%s, herdr at %s", __version__, host, cfg.port, address)
+    log.info("herdr-bridge %s: bind %s:%s, herdr at %s", __version__, host, cfg.port, address)
     bridge = Bridge(HerdrClient(address), cfg.herdr_cmd, cfg.herdr_session or None,
                     cfg.token, cfg.name)
     if sys.stderr is not None and not args.no_qr:
         print(f"\nPair the Herdr App by scanning:\n{qr_ascii(pair_uri(cfg))}", file=sys.stderr)
-    web.run_app(make_app(bridge), host=host, port=cfg.port, print=None,
-                handle_signals=True, access_log=None)
+    try:
+        asyncio.run(listener.serve(make_app(bridge), host, cfg.port))
+    except KeyboardInterrupt:
+        pass
 
 
 def cmd_pair(args: argparse.Namespace) -> None:
@@ -85,7 +85,8 @@ def cmd_config(args: argparse.Namespace) -> None:
     for k, v in vars(cfg).items():
         print(f"  {k} = {'<hidden>' if k == 'token' else v!r}")
     try:
-        print(f"Bind address: {resolve_bind(cfg)}")
+        host = resolve_bind(cfg)
+        print(f"Bind address: {host}" + ("" if address_is_up(host) else " (not up right now)"))
     except RuntimeError as e:
         print(f"Bind address: ERROR {e}")
     print(f"herdr address: {herdr_address(cfg)}")
@@ -114,7 +115,7 @@ def main(argv: list[str] | None = None) -> None:
     sub = p.add_subparsers(dest="cmd")
 
     s = sub.add_parser("serve", help="run the bridge (default)")
-    s.add_argument("--bind", help="override bind address (default: Tailscale IP)")
+    s.add_argument("--bind", help="override bind address (default: config, else Tailscale IP)")
     s.add_argument("--port", type=int)
     s.add_argument("--session", help="herdr named session")
     s.add_argument("--no-qr", action="store_true", help="don't print the pairing QR")

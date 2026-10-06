@@ -34,7 +34,8 @@ def new_token() -> str:
 @dataclass
 class Config:
     token: str = ""
-    # "tailscale" = bind only to this machine's Tailscale IPv4. Otherwise an explicit address.
+    # "tailscale" = bind only to this machine's Tailscale IPv4. Otherwise an explicit address,
+    # e.g. a static LAN IP; the bridge waits for it to come up and rebinds after it drops.
     bind: str = "tailscale"
     port: int = DEFAULT_PORT
     name: str = field(default_factory=socket.gethostname)
@@ -120,6 +121,31 @@ def _is_tailscale(ip: str) -> bool:
         return ipaddress.ip_address(ip) in TAILSCALE_NET
     except ValueError:
         return False
+
+
+def address_is_up(ip: str) -> bool:
+    """True if `ip` is assigned to a network interface that is currently up.
+
+    Wildcards, loopback and hostnames are always treated as available. A bind probe is not
+    enough on Windows: it still binds a disconnected adapter's stale DHCP address.
+    """
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return True
+    if addr.is_unspecified or addr.is_loopback:
+        return True
+    import psutil
+
+    stats = psutil.net_if_stats()
+    for name, addrs in psutil.net_if_addrs().items():
+        st = stats.get(name)
+        if st is None or not st.isup:
+            continue
+        for a in addrs:
+            if a.family in (socket.AF_INET, socket.AF_INET6) and a.address.split("%")[0] == ip:
+                return True
+    return False
 
 
 def resolve_bind(cfg: Config) -> str:

@@ -26,7 +26,8 @@ The wire protocol is documented in [PROTOCOL.md](PROTOCOL.md).
 - herdr **0.8.0-preview or newer** running natively on Windows (socket protocol 19 tested).
   Linux and macOS should also work (Unix socket), but are untested.
 - Python 3.12+ and [uv](https://docs.astral.sh/uv/) (`pip install uv`, then use `uv` or `python -m uv`).
-- [Tailscale](https://tailscale.com) on both the PC and the phone.
+- [Tailscale](https://tailscale.com) on both the PC and the phone, **or** a LAN address the phone
+  can reach (e.g. a static Wi-Fi IP, possibly via a Tailscale subnet router elsewhere on that LAN).
 - `git` on PATH for the diff feature.
 
 ## Setup
@@ -61,7 +62,7 @@ Logs are written to `%APPDATA%\herdr-bridge\bridge.log`.
 | key | default | meaning |
 |---|---|---|
 | `token` | generated | bearer token the app must send |
-| `bind` | `"tailscale"` | `"tailscale"` = this PC's Tailscale IPv4 only. Or an explicit address such as `127.0.0.1` |
+| `bind` | `"tailscale"` | `"tailscale"` = this PC's Tailscale IPv4 only. Or an explicit address such as a static LAN IP (`192.168.1.20`) or `127.0.0.1`. If the address isn't up (e.g. Wi-Fi disconnected), the bridge waits for it and re-listens whenever it drops and comes back |
 | `port` | `8787` | WebSocket port |
 | `name` | hostname | name shown in the app |
 | `herdr_cmd` | `["herdr"]` | how to run the herdr CLI (use the full path to `herdr.exe` if it isn't on PATH for the task) |
@@ -79,6 +80,10 @@ your agents' terminals. The bridge is therefore the only gate:
 
 - By default it binds **only** to the Tailscale interface, so it is unreachable from your LAN or
   the internet. Don't bind `0.0.0.0`.
+- If you bind a LAN address instead, every device on that LAN can reach the port, and the
+  connection is plain `ws://`: the token crosses the LAN unencrypted. Only do this on a network
+  you trust. Windows Firewall must allow inbound TCP for the bridge's `python.exe`/`pythonw.exe`
+  (Windows asks the first time it listens on a non-loopback address).
 - Every WebSocket must present the token (`Authorization: Bearer …` or `?token=`), which is
   compared in constant time.
 - Treat the pairing QR code like a password, and rotate the token if it leaks.
