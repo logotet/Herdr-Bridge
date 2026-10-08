@@ -80,7 +80,9 @@ To pair another phone, run `pair` again. It shows the same code.
 uv run herdr-bridge serve
 ```
 
-Runs in the foreground and prints the pairing code on start. Stop it with Ctrl+C.
+Runs in the foreground. Stop it with Ctrl+C. It does not show the pairing code, because the code
+holds the token and a terminal can be read by others, including agents in herdr panes. Use `pair`
+for that.
 
 Options for `serve`, each overriding the configuration file for that run:
 
@@ -89,7 +91,7 @@ Options for `serve`, each overriding the configuration file for that run:
 | `--bind <address>` | Address to listen on. |
 | `--port <number>` | Port to listen on. |
 | `--session <name>` | Use a named herdr session. |
-| `--no-qr` | Do not print the pairing code. |
+| `--qr` | Also print the pairing code on start. |
 | `-v` | More detail in the log. |
 
 ### Start hidden at logon (Windows)

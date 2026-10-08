@@ -55,7 +55,7 @@ def cmd_serve(args: argparse.Namespace) -> None:
     log.info("herdr-bridge %s: bind %s:%s, herdr at %s", __version__, host, cfg.port, address)
     bridge = Bridge(HerdrClient(address), cfg.herdr_cmd, cfg.herdr_session or None,
                     cfg.token, cfg.name)
-    if sys.stderr is not None and not args.no_qr:
+    if sys.stderr is not None and args.qr:
         print(f"\nPair the Herdr App by scanning:\n{qr_ascii(pair_uri(cfg))}", file=sys.stderr)
     try:
         asyncio.run(listener.serve(make_app(bridge), host, cfg.port))
@@ -118,7 +118,8 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--bind", help="override bind address (default: config, else Tailscale IP)")
     s.add_argument("--port", type=int)
     s.add_argument("--session", help="herdr named session")
-    s.add_argument("--no-qr", action="store_true", help="don't print the pairing QR")
+    s.add_argument("--qr", action="store_true", help="also print the pairing QR (it holds the token)")
+    s.add_argument("--no-qr", action="store_true", help=argparse.SUPPRESS)  # the default now
     s.add_argument("-v", "--verbose", action="store_true")
     s.set_defaults(func=cmd_serve)
 

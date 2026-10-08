@@ -72,7 +72,8 @@ Logs are written to `%APPDATA%\herdr-bridge\bridge.log`.
 | `herdr_address` | `""` | override the socket: `pipe:<path>`, `unix:<path>` or `tcp:host:port` |
 | `advertise_host` | `""` | host put into the QR code, e.g. a MagicDNS name |
 
-`serve` flags override the file: `--bind`, `--port`, `--session`, `--no-qr`, `-v`.
+`serve` flags override the file: `--bind`, `--port`, `--session`, `-v`. `--qr` also prints the
+pairing code on start.
 `uv run herdr-bridge rotate-token` invalidates every paired phone.
 
 ## Security
