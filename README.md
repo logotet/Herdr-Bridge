@@ -19,7 +19,8 @@ The bridge:
 - passes other herdr API calls through (prompt an agent, send keys, create workspaces and so on)
   and serves `git diff` for a pane's working directory.
 
-The wire protocol is documented in [PROTOCOL.md](PROTOCOL.md).
+Using it day to day is covered in the [user guide](docs/USER_GUIDE.md), how it works inside in
+[ARCHITECTURE.md](docs/ARCHITECTURE.md), and the wire protocol in [PROTOCOL.md](PROTOCOL.md).
 
 ## Requirements
 
