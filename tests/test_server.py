@@ -260,6 +260,20 @@ async def test_diff(fake: FakeHerdr, ws: WS, tmp_path, bridge: Bridge):
     assert res["ok"] is False and res["error"]["code"] == "git_failed"
 
 
+async def test_failed_restart_after_a_pc_resize_closes_the_stream(fake: FakeHerdr, ws: WS):
+    pane = {"pane_id": "w1:p2", "focused": False, "rect": {"x": 0, "y": 0, "width": 100, "height": 39}}
+    fake.snapshot["layouts"] = [{"tab_id": "w1:t1", "panes": [pane]}]
+    await fake.push_event("layout_updated", {"tab_id": "w1:t1"})
+    await ws.recv_until(lambda m: m["type"] == "snapshot" and m.get("pane_sizes"))
+    await ws.request({"type": "open_stream", "pane_id": "w1:p2"})
+    await ws.frame("w1:p2", b"observe:w1:p2:100x39")
+
+    pane["rect"]["width"] = 999  # the fake herdr command refuses this width
+    await fake.push_event("layout_updated", {"tab_id": "w1:t1"})
+    closed = await ws.recv_until(lambda m: m["type"] == "stream" and m.get("mode") == "closed")
+    assert closed["pane_id"] == "w1:p2" and "too wide" in closed["reason"]
+
+
 async def test_disconnect_kills_streams(http: TestClient, bridge: Bridge):
     raw = await http.ws_connect(f"/ws?token={TOKEN}")
     w = WS(raw)

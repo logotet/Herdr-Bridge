@@ -228,7 +228,8 @@ real size from `pane_sizes`, and uses the client's size only when the real one i
 scales the result to fit its screen.
 
 After every snapshot broadcast, each session checks its observe streams against the current pane
-sizes and restarts any whose pane was resized on the PC.
+sizes and restarts any whose pane was resized on the PC. If the restart fails, the pane has no
+stream left and the client is told that the stream is closed, with the reason.
 
 ### Control uses the client's size
 
@@ -237,7 +238,7 @@ the one typing. A `resize` in control mode is sent to herdr; in observe mode it 
 the PC size is unknown.
 
 If taking control fails, the bridge falls back to an observe stream, so the user still sees the
-pane, and then reports the failure.
+pane, and then reports the failure. If the fallback fails too, the stream is reported as closed.
 
 ## 10. Git diff
 

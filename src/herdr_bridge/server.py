@@ -202,8 +202,18 @@ class ClientSession:
                 if self.streams.get(pane_id) is not stream:
                     continue
                 await self._stop(pane_id)
-                with contextlib.suppress(Exception):
-                    await self._start(pane_id, "observe", *size)
+                await self._restart_observe(pane_id, *size)
+
+    async def _restart_observe(self, pane_id: str, cols: int, rows: int) -> bool:
+        """Start observing again after the previous stream was stopped. If that fails the pane
+        has no stream left, so the client is told instead of being left with a frozen screen."""
+        try:
+            await self._start(pane_id, "observe", cols, rows)
+        except (StreamError, OSError) as e:
+            log.warning("cannot observe %s at %sx%s: %s", pane_id, cols, rows, e)
+            self._mode_msg(pane_id, "closed", str(e) or "stream failed")
+            return False
+        return True
 
     async def _start(self, pane_id: str, mode: str, cols: int, rows: int,
                      takeover: bool = False) -> TerminalStream:
@@ -268,9 +278,8 @@ class ClientSession:
                 await self._start(pane_id, "control", cols, rows, bool(msg.get("takeover", False)))
             except StreamError:
                 # Fall back to observing so the user still sees the pane.
-                with contextlib.suppress(Exception):
-                    o_cols, o_rows = self.observe_size.get(pane_id, (cols, rows))
-                    await self._start(pane_id, "observe", *self._observe_dims(pane_id, o_cols, o_rows))
+                o_cols, o_rows = self.observe_size.get(pane_id, (cols, rows))
+                if await self._restart_observe(pane_id, *self._observe_dims(pane_id, o_cols, o_rows)):
                     self._mode_msg(pane_id, "observe")
                 raise
             self._mode_msg(pane_id, "control")

@@ -30,6 +30,9 @@ def main():
     if pane == "w1:missing":
         sys.stderr.write("error: pane not found\n")
         sys.exit(1)
+    if cols == 999:
+        sys.stderr.write("error: too wide\n")
+        sys.exit(1)
     if mode == "control" and pane == "w1:locked" and "--takeover" not in args:
         sys.stderr.write("error: terminal already has a controller; use --takeover\n")
         sys.exit(1)
