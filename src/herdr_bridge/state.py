@@ -211,8 +211,13 @@ class StateTracker:
             await self._dirty.wait()
             await asyncio.sleep(self.debounce)
             self._dirty.clear()
-            with contextlib.suppress(HerdrError):
+            try:
                 await self.refresh()
+            except HerdrError:
+                pass  # already reported as herdr_status; the next poll tries again
+            except Exception:
+                # This loop is the only thing that keeps the state fresh; it must not end.
+                log.exception("refresh failed")
 
     async def _poll_loop(self) -> None:
         while True:

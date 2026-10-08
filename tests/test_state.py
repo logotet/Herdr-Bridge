@@ -115,3 +115,17 @@ async def test_events_trigger_refresh_and_resubscribe(fake: FakeHerdr, client: H
         assert pane_subs <= {"w1:p1", "w1:p2"}
     finally:
         await t.stop()
+
+
+async def test_refresh_loop_survives_a_herdr_that_stops_answering(fake: FakeHerdr):
+    t = StateTracker(HerdrClient(fake.address, timeout=0.2), debounce=0.01, poll_interval=0.05)
+    await t.start()
+    try:
+        await _wait(lambda: t.available)
+        fake.hang.update({"session.snapshot", "pane.read"})
+        await _wait(lambda: not t.available)
+        fake.hang.clear()
+        fake.set_status("w1:p1", "blocked")
+        await _wait(lambda: t.available and t.snapshot["agents"][0]["agent_status"] == "blocked")
+    finally:
+        await t.stop()

@@ -30,6 +30,19 @@ async def test_unavailable():
         await c.ping()
 
 
+async def test_no_answer_in_time_is_unavailable(fake: FakeHerdr):
+    fake.hang.add("ping")
+    with pytest.raises(HerdrUnavailable, match="did not answer ping"):
+        await HerdrClient(fake.address, timeout=0.2).ping()
+
+
+async def test_malformed_reply_is_a_herdr_error(fake: FakeHerdr, client: HerdrClient):
+    fake.garbage.add("ping")
+    with pytest.raises(HerdrError) as e:
+        await client.ping()
+    assert e.value.code == "herdr_error"
+
+
 async def test_subscribe_yields_events(fake: FakeHerdr, client: HerdrClient):
     events = client.subscribe([{"type": "pane.created"}])
     nxt = asyncio.ensure_future(anext(events))

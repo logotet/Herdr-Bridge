@@ -127,6 +127,16 @@ def _close(writer: asyncio.StreamWriter) -> None:
         pass
 
 
+def _decode(raw: bytes) -> dict[str, Any]:
+    try:
+        msg = json.loads(raw)
+    except ValueError as e:
+        raise HerdrError("herdr_error", "herdr sent a reply that is not JSON") from e
+    if not isinstance(msg, dict):
+        raise HerdrError("herdr_error", "herdr sent a reply that is not an object")
+    return msg
+
+
 def _check(msg: dict[str, Any]) -> dict[str, Any]:
     err = msg.get("error")
     if err is not None:
@@ -145,19 +155,25 @@ class HerdrClient:
 
     async def request(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         req_id = f"bridge_{next(_ids)}"
-        reader, writer = await _open(self.address)
+        line = json.dumps({"id": req_id, "method": method, "params": params or {}})
+        # Every failure to get an answer is a HerdrError: callers such as the refresh loop rely on
+        # that, and a timeout that escaped as TimeoutError used to end them for good.
         try:
-            line = json.dumps({"id": req_id, "method": method, "params": params or {}})
-            writer.write(line.encode() + b"\n")
-            await writer.drain()
-            raw = await asyncio.wait_for(reader.readline(), self.timeout)
-        except (ConnectionError, BrokenPipeError) as e:
+            async with asyncio.timeout(self.timeout):
+                reader, writer = await _open(self.address)
+                try:
+                    writer.write(line.encode() + b"\n")
+                    await writer.drain()
+                    raw = await reader.readline()
+                finally:
+                    _close(writer)
+        except TimeoutError as e:
+            raise HerdrUnavailable(f"herdr did not answer {method} within {self.timeout:g} s") from e
+        except OSError as e:
             raise HerdrUnavailable(f"connection lost: {e}") from e
-        finally:
-            _close(writer)
         if not raw:
             raise HerdrUnavailable("herdr closed the connection without a response")
-        return _check(json.loads(raw))
+        return _check(_decode(raw))
 
     async def ping(self) -> HerdrInfo:
         res = await self.request("ping")
@@ -175,20 +191,24 @@ class HerdrClient:
                    "params": {"subscriptions": subscriptions}}
             writer.write(json.dumps(req).encode() + b"\n")
             await writer.drain()
-            first = await asyncio.wait_for(reader.readline(), self.timeout)
+            try:
+                first = await asyncio.wait_for(reader.readline(), self.timeout)
+            except TimeoutError as e:
+                raise HerdrUnavailable(
+                    f"herdr did not start the subscription within {self.timeout:g} s") from e
             if not first:
                 raise HerdrUnavailable("subscription closed immediately")
-            _check(json.loads(first))
+            _check(_decode(first))
             while True:
                 raw = await reader.readline()
                 if not raw:
                     return
-                msg = json.loads(raw)
+                msg = _decode(raw)
                 if "error" in msg:
                     _check(msg)
                 if "event" in msg:
                     yield msg
-        except (ConnectionError, BrokenPipeError) as e:
+        except OSError as e:
             raise HerdrUnavailable(f"subscription lost: {e}") from e
         finally:
             _close(writer)

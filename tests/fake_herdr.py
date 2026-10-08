@@ -44,6 +44,8 @@ class FakeHerdr:
         self._pipe_server: Any = None
         self.address = ""
         self.screen_text: dict[str, str] = {"w1:p1": "line one\n\nline two\nwaiting for input\n"}
+        self.hang: set[str] = set()  # methods that get no answer
+        self.garbage: set[str] = set()  # methods answered with something that is not JSON
 
     # ---- control from tests ----
     def set_status(self, pane_id: str, status: str) -> None:
@@ -108,6 +110,15 @@ class FakeHerdr:
         req = json.loads(raw)
         method, params, rid = req["method"], req.get("params", {}), req["id"]
         self.calls.append((method, params))
+        if method in self.hang:
+            await reader.read()  # say nothing until the caller gives up
+            writer.close()
+            return
+        if method in self.garbage:
+            writer.write(b"not json\n")
+            await writer.drain()
+            writer.close()
+            return
         if method == "events.subscribe":
             subs = params["subscriptions"]
             known = {p["pane_id"] for p in self.snapshot["panes"]}
