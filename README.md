@@ -16,7 +16,8 @@ The bridge:
 - streams any pane as ANSI frames by running `herdr terminal session observe|control`, so the
   app can render it in a real terminal emulator. Panes open read-only, and **take control**
   switches to input mode;
-- passes other herdr API calls through (prompt an agent, send keys, create workspaces and so on)
+- passes a fixed set of herdr API calls through (send text and keys, rename, close and create
+  panes, tabs and workspaces)
   and serves `git diff` for a pane's working directory.
 
 Using it day to day is covered in the [user guide](docs/USER_GUIDE.md), how it works inside in

@@ -32,7 +32,7 @@ always answers with exactly one `result`:
 ```
 
 Error codes are herdr's error codes passed through, plus bridge codes: `bad_request`,
-`unknown_type`, `not_controlling`, `stream_failed`, `herdr_unavailable`, `git_failed`.
+`unknown_type`, `not_controlling`, `not_allowed`, `stream_failed`, `herdr_unavailable`, `git_failed`.
 
 ## Server → client messages
 
@@ -107,21 +107,23 @@ A fresh `snapshot` follows when herdr comes back.
 | `input` | `pane_id, text?` or `bytes?` (base64) | raw keyboard input; **requires control** (else `not_controlling`) |
 | `resize` | `pane_id, cols, rows` | control: resizes the PTY. observe: only matters when the PC size is unknown (restarts the observer at the new size) |
 | `scroll` | `pane_id, direction: "up"\|"down", lines` | control mode only |
-| `call` | `method, params` | passthrough to any herdr socket API method (one request). `data` = herdr `result`. Examples below. |
+| `call` | `method, params` | passthrough to a herdr socket API method (one request). `data` = herdr `result`. Only the methods listed below are let through; any other gets `not_allowed`. |
 | `diff` | `pane_id, staged?: bool, path?: string` | runs `git diff` in the pane's `foreground_cwd` (or `cwd`). `data` = `{cwd, root, branch, staged, stat, diff, truncated, untracked: string[]}`. `diff` is capped at 2 MiB (`truncated: true`); `untracked` is empty when `staged`. Errors: `git_failed` |
 
-### Common `call` examples (herdr protocol 19)
+### Methods allowed through `call` (herdr protocol 19)
+
+`pane.read`, `pane.send_input`, `pane.send_keys`, `pane.send_text`, `pane.rename`, `pane.close`,
+`tab.create`, `tab.rename`, `tab.close`, `workspace.create`, `workspace.rename`, `workspace.close`.
+The list is `ALLOWED_CALLS` in `server.py`; a new app feature that needs another method adds it there.
+
 ```json
 {"type":"call","id":"1","method":"pane.send_keys","params":{"pane_id":"w1:p1","keys":["ctrl+c"]}}
 {"type":"call","id":"2","method":"pane.send_text","params":{"pane_id":"w1:p1","text":"yes"}}
 {"type":"call","id":"3","method":"pane.send_input","params":{"pane_id":"w1:p1","text":"run tests","keys":["enter"]}}
-{"type":"call","id":"4","method":"agent.prompt","params":{"target":"w1:p1","text":"fix the build"}}
 {"type":"call","id":"5","method":"workspace.create","params":{"cwd":"C:\\repo","label":"repo","focus":false}}
 {"type":"call","id":"6","method":"tab.create","params":{"workspace_id":"w1","label":"agent","focus":false}}
-{"type":"call","id":"7","method":"agent.start","params":{"pane_id":"w1:p3","kind":"claude","name":"claude"}}
 {"type":"call","id":"8","method":"pane.close","params":{"pane_id":"w1:p3"}}
 {"type":"call","id":"9","method":"pane.rename","params":{"pane_id":"w1:p3","label":"tests"}}
-{"type":"call","id":"10","method":"worktree.create","params":{"workspace_id":"w1","branch":"feat/x","focus":false}}
 {"type":"call","id":"11","method":"pane.read","params":{"pane_id":"w1:p1","source":"recent_unwrapped","lines":40}}
 ```
 Key names for `keys`: printable chars, `enter`, `esc`, `tab`, `backspace`, `up`, `down`, `left`,

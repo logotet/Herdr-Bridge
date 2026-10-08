@@ -23,6 +23,13 @@ PROTOCOL_VERSION = 1
 MAX_QUEUE = 5000
 OBSERVE_DEFAULT = (80, 40)
 INLINE_TYPES = frozenset({"input", "scroll"})
+# The herdr methods a client may reach through `call`: what the Herdr App uses. herdr's API is
+# much wider (it can start programs and stop the server), and the token is the only check.
+ALLOWED_CALLS = frozenset({
+    "pane.read", "pane.send_input", "pane.send_keys", "pane.send_text", "pane.rename", "pane.close",
+    "tab.create", "tab.rename", "tab.close",
+    "workspace.create", "workspace.rename", "workspace.close",
+})
 
 
 class BridgeError(Exception):
@@ -179,8 +186,8 @@ class ClientSession:
         method = msg["method"]
         if not isinstance(method, str) or not method:
             raise BridgeError("bad_request", "method required")
-        if method == "events.subscribe" or method == "server.stop":
-            raise BridgeError("bad_request", f"{method} is not allowed through the bridge")
+        if method not in ALLOWED_CALLS:
+            raise BridgeError("not_allowed", f"{method} is not allowed through the bridge")
         params = msg.get("params") or {}
         if not isinstance(params, dict):
             raise BridgeError("bad_request", "params must be an object")

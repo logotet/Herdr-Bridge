@@ -128,11 +128,11 @@ async def test_call_passthrough(fake: FakeHerdr, ws: WS):
     assert res["ok"] is False and res["error"]["code"] == "pane_not_found"
 
 
-@pytest.mark.parametrize("method", ["events.subscribe", "server.stop"])
-async def test_call_disallowed(fake: FakeHerdr, ws: WS, method: str):
+@pytest.mark.parametrize("method", ["events.subscribe", "server.stop", "agent.start", "no.such"])
+async def test_call_outside_the_allow_list_is_refused(fake: FakeHerdr, ws: WS, method: str):
     res = await ws.request({"type": "call", "method": method, "params": {}})
-    assert res["ok"] is False and res["error"]["code"] == "bad_request"
-    assert method not in [c[0] for c in fake.calls if c[0] == "server.stop"]
+    assert res["ok"] is False and res["error"]["code"] == "not_allowed"
+    assert (method, {}) not in fake.calls
 
 
 async def test_status_change_pushes_agent_status(fake: FakeHerdr, ws: WS, bridge: Bridge):

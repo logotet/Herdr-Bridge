@@ -183,16 +183,18 @@ Each message is a JSON object with a `type`. The handler is the method named `op
 - Every other message is started as its own task, so a slow herdr call does not hold up typing.
 
 If the message has an `id`, exactly one `result` is sent back. Failures map to an error code:
-herdr's own code, or `bad_request`, `unknown_type`, `not_controlling`, `stream_failed`,
+herdr's own code, or `bad_request`, `unknown_type`, `not_controlling`, `not_allowed`, `stream_failed`,
 `git_failed`, `internal`.
 
 ### Passing calls through
 
-`call` forwards any herdr method with its parameters and returns herdr's result unchanged. Two
-methods are refused: `events.subscribe`, which would hold a connection open, and `server.stop`.
-After every call the state is marked dirty, so the effect shows up in the next snapshot.
+`call` forwards a herdr method with its parameters and returns herdr's result unchanged. After
+every call the state is marked dirty, so the effect shows up in the next snapshot.
 
-There is no allow-list. A client with the token can call anything else herdr offers.
+Only the methods in `ALLOWED_CALLS` (`server.py`) are forwarded: the ones the Herdr App uses to
+read a pane, send text and keys, and rename, close and create panes, tabs and workspaces. Any
+other method is refused with `not_allowed`. herdr's API is much wider, and it can start programs
+and stop the server, so a leaked token should not reach all of it.
 
 ## 9. Pane streams: `TerminalStream`
 
@@ -272,7 +274,7 @@ and the list of untracked files at 500 entries.
 
 - **Trust boundary:** the WebSocket. herdr's socket has no authentication, so the bridge's token
   check is the only control.
-- **One level of access:** a valid token grants everything. There are no read-only clients and no
+- **One level of access:** a valid token grants everything the bridge offers. There are no read-only clients and no
   per-pane permissions.
 - **No transport encryption:** the bridge serves plain `ws://`. Confidentiality comes from the
   network: Tailscale encrypts, a LAN does not.
