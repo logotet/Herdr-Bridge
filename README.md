@@ -35,8 +35,8 @@ Using it day to day is covered in the [user guide](docs/USER_GUIDE.md), how it w
 ## Setup
 
 ```powershell
-git clone https://github.com/<you>/herdr-bridge
-cd herdr-bridge
+git clone https://github.com/logotet/Herdr-Bridge.git
+cd Herdr-Bridge
 uv sync
 
 uv run herdr-bridge check      # verifies herdr is reachable and prints its version

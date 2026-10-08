@@ -39,8 +39,8 @@ in only clients that present its token.
 ## 4. Install
 
 ```powershell
-git clone <this repo>
-cd herdr-bridge
+git clone https://github.com/logotet/Herdr-Bridge.git
+cd Herdr-Bridge
 uv sync
 uv run herdr-bridge check
 ```
