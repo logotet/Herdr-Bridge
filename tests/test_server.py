@@ -190,6 +190,31 @@ async def test_observe_resize_restarts_stream(ws: WS):
     await ws.frame("w1:p2", b"observe:w1:p2:70x30")
 
 
+async def test_observe_uses_pc_pane_size(fake: FakeHerdr, ws: WS):
+    fake.snapshot["layouts"] = [{"tab_id": "w1:t1", "area": {"x": 0, "y": 0, "width": 200, "height": 40},
+                                 "panes": [{"pane_id": "w1:p2", "focused": False,
+                                            "rect": {"x": 100, "y": 0, "width": 100, "height": 39}}],
+                                 "splits": [], "zoomed": False}]
+    await fake.push_event("layout_updated", {"tab_id": "w1:t1"})
+    snap = await ws.recv_until(lambda m: m["type"] == "snapshot" and m.get("pane_sizes"))
+    assert snap["pane_sizes"] == {"w1:p2": [100, 39]}
+
+    # Observe ignores the phone size and renders the whole PC pane; the app scales it.
+    await ws.request({"type": "open_stream", "pane_id": "w1:p2", "cols": 40, "rows": 10})
+    await ws.frame("w1:p2", b"observe:w1:p2:100x39")
+
+    # Control still uses the phone size; release goes back to the PC size.
+    await ws.request({"type": "take_control", "pane_id": "w1:p2"})
+    await ws.frame("w1:p2", b"control:w1:p2:40x10")
+    await ws.request({"type": "release_control", "pane_id": "w1:p2"})
+    await ws.frame("w1:p2", b"observe:w1:p2:100x39")
+
+    # The PC pane is resized: the observe stream follows.
+    fake.snapshot["layouts"][0]["panes"][0]["rect"]["width"] = 120
+    await fake.push_event("layout_updated", {"tab_id": "w1:t1"})
+    await ws.frame("w1:p2", b"observe:w1:p2:120x39")
+
+
 async def test_open_stream_failure(ws: WS):
     res = await ws.request({"type": "open_stream", "pane_id": "w1:missing"})
     assert res["ok"] is False and res["error"]["code"] == "stream_failed"

@@ -51,6 +51,7 @@ The full current state. The client should **replace** its state with it.
  "panes": [PaneInfo...],
  "agents": [AgentInfo...],
  "focused_workspace_id": "w1", "focused_tab_id": "w1:t1", "focused_pane_id": "w1:p1",
+ "pane_sizes": {"w1:p1": [144, 39]},
  "previews": {"w1:p1": "last few lines of plain text"}}
 ```
 Object shapes are herdr's (`session.snapshot`). Fields used by the app:
@@ -60,6 +61,7 @@ Object shapes are herdr's (`session.snapshot`). Fields used by the app:
   label?, terminal_title?, terminal_title_stripped?, scroll?{offset_from_bottom, max_offset_from_bottom, viewport_rows}`
 - AgentInfo: same as PaneInfo plus `state_change_seq`. Only panes running a detected agent.
 - `agent_status` ∈ `idle | working | blocked | done | unknown` (`done` = finished, not yet seen).
+- `pane_sizes`: the real grid size `[cols, rows]` of each pane on the PC, from herdr's tab layouts. Panes in hidden tabs may be missing.
 - `previews`: the last ~3 non-empty lines of each **agent** pane (plain text). May be missing for some panes.
 
 ### `agent_status` (a transition, used for notifications)
@@ -98,12 +100,12 @@ A fresh `snapshot` follows when herdr comes back.
 |---|---|---|
 | `ping` | `id?` | server replies `pong` |
 | `refresh` | `id?` | forces a fresh `snapshot` |
-| `open_stream` | `pane_id, cols, rows` | starts a **read-only observe** stream for this pane. Frames follow. Re-opening the same pane replaces the stream. |
+| `open_stream` | `pane_id, cols, rows` | starts a **read-only observe** stream for this pane. Frames follow at the pane's real PC size (`pane_sizes`) when known, so nothing is cropped; `cols/rows` are the fallback. The stream is restarted when the PC pane is resized. Re-opening the same pane replaces the stream. |
 | `close_stream` | `pane_id` | stops the stream (and releases control if held) |
 | `take_control` | `pane_id, cols, rows, takeover?: bool` | switches the stream to control mode (the phone owns input/resize; **this resizes the real PTY**). `takeover=true` steals from another controller. Answers with a `stream` message. |
 | `release_control` | `pane_id` | back to observe mode |
 | `input` | `pane_id, text?` or `bytes?` (base64) | raw keyboard input; **requires control** (else `not_controlling`) |
-| `resize` | `pane_id, cols, rows` | control: resizes the PTY. observe: restarts the observer at the new size |
+| `resize` | `pane_id, cols, rows` | control: resizes the PTY. observe: only matters when the PC size is unknown (restarts the observer at the new size) |
 | `scroll` | `pane_id, direction: "up"\|"down", lines` | control mode only |
 | `call` | `method, params` | passthrough to any herdr socket API method (one request). `data` = herdr `result`. Examples below. |
 | `diff` | `pane_id, staged?: bool, path?: string` | runs `git diff` in the pane's `foreground_cwd` (or `cwd`). `data` = `{cwd, root, branch, staged, stat, diff, truncated, untracked: string[]}`. `diff` is capped at 2 MiB (`truncated: true`); `untracked` is empty when `staged`. Errors: `git_failed` |

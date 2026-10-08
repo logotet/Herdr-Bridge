@@ -97,8 +97,24 @@ class StateTracker:
             "focused_workspace_id": s.get("focused_workspace_id"),
             "focused_tab_id": s.get("focused_tab_id"),
             "focused_pane_id": s.get("focused_pane_id"),
+            "pane_sizes": self.pane_sizes(),
             "previews": {k: v for k, v in self.previews.items() if v},
         }
+
+    def pane_sizes(self) -> dict[str, list[int]]:
+        """Real (PC) grid size of each pane, ``[cols, rows]``, from the snapshot's tab layouts."""
+        sizes: dict[str, list[int]] = {}
+        for layout in self.snapshot.get("layouts") or []:
+            for p in layout.get("panes") or []:
+                rect = p.get("rect") or {}
+                w, h = rect.get("width"), rect.get("height")
+                if p.get("pane_id") and isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0:
+                    sizes[p["pane_id"]] = [w, h]
+        return sizes
+
+    def pane_size(self, pane_id: str) -> tuple[int, int] | None:
+        size = self.pane_sizes().get(pane_id)
+        return (size[0], size[1]) if size else None
 
     def herdr_info(self) -> dict[str, Any]:
         return {

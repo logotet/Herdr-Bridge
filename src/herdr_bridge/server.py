@@ -44,11 +44,18 @@ class Bridge:
         self.name = name
         self.tracker = tracker or StateTracker(client)
         self.clients: set[ClientSession] = set()
+        self._tasks: set[asyncio.Task[None]] = set()
         self.tracker.add_listener(self._broadcast)
 
     async def _broadcast(self, msg: dict[str, Any]) -> None:
         for c in list(self.clients):
             c.send(msg)
+        if msg.get("type") == "snapshot":
+            # Pane sizes may have changed (PC window or split resized): re-open observe streams.
+            for c in list(self.clients):
+                task = asyncio.create_task(c.sync_observe_sizes())
+                self._tasks.add(task)
+                task.add_done_callback(self._tasks.discard)
 
     def check_token(self, request: web.Request) -> bool:
         supplied = ""
@@ -179,6 +186,25 @@ class ClientSession:
     def _size(self, msg: dict[str, Any], default: tuple[int, int]) -> tuple[int, int]:
         return int(msg.get("cols") or default[0]), int(msg.get("rows") or default[1])
 
+    def _observe_dims(self, pane_id: str, cols: int, rows: int) -> tuple[int, int]:
+        """Observe at the pane's real size: herdr crops observe frames to the requested grid, so a
+        phone-sized request would cut off the right side. The app scales the frames to fit."""
+        return self.bridge.tracker.pane_size(pane_id) or (cols, rows)
+
+    async def sync_observe_sizes(self) -> None:
+        for pane_id, stream in list(self.streams.items()):
+            if self.ws.closed or stream.mode != "observe":
+                continue
+            size = self.bridge.tracker.pane_size(pane_id)
+            if not size or size == (stream.cols, stream.rows):
+                continue
+            async with self._lock(pane_id):
+                if self.streams.get(pane_id) is not stream:
+                    continue
+                await self._stop(pane_id)
+                with contextlib.suppress(Exception):
+                    await self._start(pane_id, "observe", *size)
+
     async def _start(self, pane_id: str, mode: str, cols: int, rows: int,
                      takeover: bool = False) -> TerminalStream:
         stream: TerminalStream
@@ -222,7 +248,7 @@ class ClientSession:
         async with self._lock(pane_id):
             await self._stop(pane_id)
             self.observe_size[pane_id] = (cols, rows)
-            await self._start(pane_id, "observe", cols, rows)
+            await self._start(pane_id, "observe", *self._observe_dims(pane_id, cols, rows))
             self._mode_msg(pane_id, "observe")
         return {"mode": "observe"}
 
@@ -244,7 +270,7 @@ class ClientSession:
                 # Fall back to observing so the user still sees the pane.
                 with contextlib.suppress(Exception):
                     o_cols, o_rows = self.observe_size.get(pane_id, (cols, rows))
-                    await self._start(pane_id, "observe", o_cols, o_rows)
+                    await self._start(pane_id, "observe", *self._observe_dims(pane_id, o_cols, o_rows))
                     self._mode_msg(pane_id, "observe")
                 raise
             self._mode_msg(pane_id, "control")
@@ -257,7 +283,7 @@ class ClientSession:
             size = self.observe_size.get(pane_id) or (
                 (current.cols, current.rows) if current else OBSERVE_DEFAULT)
             await self._stop(pane_id)
-            await self._start(pane_id, "observe", *size)
+            await self._start(pane_id, "observe", *self._observe_dims(pane_id, *size))
             self._mode_msg(pane_id, "observe")
         return {"mode": "observe"}
 
@@ -290,8 +316,11 @@ class ClientSession:
                 await stream.send({"type": "terminal.resize", "cols": cols, "rows": rows})
             else:
                 self.observe_size[pane_id] = (cols, rows)
-                await self._stop(pane_id)
-                await self._start(pane_id, "observe", cols, rows)
+                dims = self._observe_dims(pane_id, cols, rows)
+                # The view size doesn't matter while observing a known PC size; don't restart for it.
+                if dims != (stream.cols, stream.rows):
+                    await self._stop(pane_id)
+                    await self._start(pane_id, "observe", *dims)
         return {}
 
     async def op_scroll(self, msg: dict[str, Any]) -> dict[str, Any]:
