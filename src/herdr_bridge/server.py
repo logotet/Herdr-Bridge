@@ -10,7 +10,7 @@ import json
 import logging
 from typing import Any
 
-from aiohttp import WSMsgType, web
+from aiohttp import WSCloseCode, WSMsgType, web
 
 from . import __version__, gitdiff
 from .herdr_client import HerdrClient, HerdrError
@@ -81,14 +81,28 @@ class ClientSession:
         self.observe_size: dict[str, tuple[int, int]] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._tasks: set[asyncio.Task] = set()
+        self._dropped = False
 
     # ---- outgoing ----
     def send(self, msg: dict[str, Any]) -> None:
+        if self._dropped:
+            return
         if self.queue.qsize() > MAX_QUEUE:
             log.warning("client %s too slow; disconnecting", self.peer)
+            self._dropped = True
+            # What is waiting will never be read in time: forget it, so the close is not queued
+            # behind it. The writer may be stuck in a send, so the socket is also closed directly.
+            while not self.queue.empty():
+                self.queue.get_nowait()
             self.queue.put_nowait(None)
+            self.spawn(self._drop())
             return
         self.queue.put_nowait(json.dumps(msg, separators=(",", ":")))
+
+    async def _drop(self) -> None:
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(self.ws.close(code=WSCloseCode.TRY_AGAIN_LATER,
+                                                 message=b"too slow"), 2)
 
     async def writer(self) -> None:
         while True:

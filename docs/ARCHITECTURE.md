@@ -169,9 +169,11 @@ empty configured token never matches.
 ### Sending
 
 Each session has an unbounded queue and one writer task. Handlers and broadcasts only put messages
-on the queue, so a slow phone never blocks the rest of the bridge. No message is ever dropped. If
-more than 5000 messages are waiting, the client is disconnected instead: terminal frames build on
-each other, so a gap would corrupt the screen, while a reconnect starts from a full frame.
+on the queue, so a slow phone never blocks the rest of the bridge. A connected client never misses
+a message. If more than 5000 messages are waiting, the client is disconnected instead: terminal
+frames build on each other, so a gap would corrupt the screen, while a reconnect starts from a
+full frame. The waiting messages are thrown away at that point and the socket is closed at once,
+without first sending what the client was too slow to read.
 
 ### Receiving
 

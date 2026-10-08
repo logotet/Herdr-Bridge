@@ -7,6 +7,7 @@ import subprocess
 from typing import Any
 
 import pytest
+from aiohttp import WSMsgType
 from aiohttp.test_utils import TestClient, TestServer
 
 from herdr_bridge.herdr_client import HerdrClient
@@ -272,6 +273,28 @@ async def test_failed_restart_after_a_pc_resize_closes_the_stream(fake: FakeHerd
     await fake.push_event("layout_updated", {"tab_id": "w1:t1"})
     closed = await ws.recv_until(lambda m: m["type"] == "stream" and m.get("mode") == "closed")
     assert closed["pane_id"] == "w1:p2" and "too wide" in closed["reason"]
+
+
+async def test_slow_client_is_disconnected_at_once(http: TestClient, bridge: Bridge, monkeypatch, caplog):
+    monkeypatch.setattr("herdr_bridge.server.MAX_QUEUE", 10)
+    raw = await http.ws_connect(f"/ws?token={TOKEN}")
+    await raw.receive_json()  # hello: the session exists now
+    session = next(iter(bridge.clients))
+    for n in range(200):  # no await in between, so nothing is written meanwhile
+        session.send({"type": "frame", "n": n})
+    assert session.queue.qsize() == 1  # only the close is left
+    assert [r.message for r in caplog.records].count("client 127.0.0.1 too slow; disconnecting") == 1
+
+    received = 0
+    while (m := await raw.receive(timeout=5)).type == WSMsgType.TEXT:
+        received += 1
+    assert m.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED)
+    assert received <= 1  # at most the snapshot that was already on its way
+    for _ in range(100):
+        if not bridge.clients:
+            break
+        await asyncio.sleep(0.05)
+    assert not bridge.clients
 
 
 async def test_disconnect_kills_streams(http: TestClient, bridge: Bridge):
