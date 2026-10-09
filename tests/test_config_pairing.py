@@ -66,6 +66,14 @@ def test_pair_prints_the_qr_to_a_redirected_stream(tmp_path):
     assert "herdr-bridge://pair?host=127.0.0.1" in res.stdout.decode("utf-8")
 
 
+def test_pair_can_save_the_qr_as_an_image(tmp_path):
+    res = _pair(tmp_path, "--svg")
+    assert res.returncode == 0, res.stderr.decode(errors="replace")
+    image = tmp_path / "pairing-qr.svg"
+    assert image.read_text(encoding="utf-8").lstrip().startswith("<?xml")
+    assert str(image) in res.stdout.decode("utf-8")
+
+
 def test_qr_ascii():
     out = qr_ascii("herdr-bridge://pair?host=1")
     assert len(out.splitlines()) > 10

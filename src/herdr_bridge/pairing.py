@@ -7,8 +7,9 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 import qrcode
+from qrcode.image.svg import SvgPathFillImage
 
-from .config import Config, config_dir, resolve_bind, tailscale_ipv4
+from .config import Config, config_path, resolve_bind, tailscale_ipv4
 
 
 def pair_host(cfg: Config) -> str:
@@ -33,10 +34,11 @@ def qr_ascii(data: str) -> str:
     return buf.getvalue()
 
 
-def qr_png(data: str, path: Path | None = None) -> Path:
-    path = path or (config_dir() / "pairing-qr.png")
+def qr_svg(data: str, path: Path | None = None) -> Path:
+    """Writes the code as an image, next to the configuration. SVG needs no image library."""
+    path = path or (config_path().parent / "pairing-qr.svg")
     path.parent.mkdir(parents=True, exist_ok=True)
-    img = qrcode.make(data, box_size=8, border=3)
+    img = qrcode.make(data, image_factory=SvgPathFillImage, box_size=8, border=3)
     with path.open("wb") as f:
         img.save(f)
     return path

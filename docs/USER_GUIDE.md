@@ -66,8 +66,9 @@ You never need to read or type it. Pairing hands it to the phone.
 uv run herdr-bridge pair
 ```
 
-This prints a QR code, the PC's name, and the same information as a line of text. Add `--png` to
-also save the code as an image in the configuration folder.
+This prints a QR code, the PC's name, and the same information as a line of text. Add `--svg` to
+also save the code as the image `pairing-qr.svg` in the configuration folder, which any browser
+opens. The image holds the token, so delete it once the phone is paired.
 
 In the Herdr App, open **Hosts**, add a host and scan the code. If the camera is not an option,
 type the address, the port and the token from the printed line.
@@ -186,7 +187,7 @@ terminals. The bridge is therefore the only gate between the network and your se
 | Command | What it does |
 |---|---|
 | `serve` | Runs the bridge. This is the default when no command is given. |
-| `pair [--png]` | Shows the pairing code, creating the token if there is none. |
+| `pair [--svg]` | Shows the pairing code, creating the token if there is none. |
 | `rotate-token` | Replaces the token. Restart and pair again afterwards. |
 | `config` | Shows the configuration, with the token hidden. |
 | `check` | Tests the connection to herdr and lists the agents. |

@@ -11,7 +11,7 @@ import sys
 from . import __version__, autostart, listener
 from .config import Config, address_is_up, config_dir, config_path, new_token, resolve_bind
 from .herdr_client import HerdrClient, address_for_socket, discover_socket_path
-from .pairing import pair_uri, qr_ascii, qr_png
+from .pairing import pair_uri, qr_ascii, qr_svg
 from .server import Bridge, make_app
 
 log = logging.getLogger("herdr_bridge")
@@ -68,8 +68,8 @@ def cmd_pair(args: argparse.Namespace) -> None:
     uri = pair_uri(cfg)
     print(qr_ascii(uri))
     print(f"Name: {cfg.name}\nURI:  {uri}")
-    if args.png:
-        print(f"PNG:  {qr_png(uri)}")
+    if args.svg:
+        print(f"SVG:  {qr_svg(uri)}")
 
 
 def cmd_rotate_token(args: argparse.Namespace) -> None:
@@ -124,7 +124,7 @@ def main(argv: list[str] | None = None) -> None:
     s.set_defaults(func=cmd_serve)
 
     pp = sub.add_parser("pair", help="show the pairing QR code")
-    pp.add_argument("--png", action="store_true", help="also write a PNG")
+    pp.add_argument("--svg", action="store_true", help="also save the code as an image (it holds the token)")
     pp.set_defaults(func=cmd_pair)
 
     sub.add_parser("rotate-token", help="generate a new token").set_defaults(func=cmd_rotate_token)
