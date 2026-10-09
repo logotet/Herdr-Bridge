@@ -137,6 +137,12 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("task-status", help="show logon task status").set_defaults(
         func=lambda a: print(autostart.status()))
 
+    # The pairing QR is drawn with block characters. A Windows stream that is redirected to a file
+    # or a pipe uses the ANSI code page, which cannot encode them.
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
     args = p.parse_args(argv)
     if not args.cmd:
         args = p.parse_args(["serve", *(argv or sys.argv[1:])])

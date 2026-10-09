@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from urllib.parse import parse_qs, urlparse
 
 from herdr_bridge.config import Config, _is_tailscale
@@ -44,6 +47,23 @@ def test_pair_uri():
     assert q == {"host": ["127.0.0.1"], "port": ["8787"], "token": ["abc+/="], "name": ["my pc"]}
     cfg.advertise_host = "pc.tailnet.ts.net"
     assert parse_qs(urlparse(pair_uri(cfg)).query)["host"] == ["pc.tailnet.ts.net"]
+
+
+def _pair(tmp_path, *args: str) -> subprocess.CompletedProcess[bytes]:
+    """Runs ``herdr-bridge pair`` on its own configuration, with its output going to a pipe."""
+    config = tmp_path / "config.toml"
+    Config(token="tok", bind="127.0.0.1").save(config)
+    env = {**os.environ, "HERDR_BRIDGE_CONFIG": str(config)}
+    env.pop("PYTHONIOENCODING", None)
+    env.pop("PYTHONUTF8", None)
+    return subprocess.run([sys.executable, "-m", "herdr_bridge", "pair", *args], env=env,
+                          capture_output=True, timeout=30)
+
+
+def test_pair_prints_the_qr_to_a_redirected_stream(tmp_path):
+    res = _pair(tmp_path)
+    assert res.returncode == 0, res.stderr.decode(errors="replace")
+    assert "herdr-bridge://pair?host=127.0.0.1" in res.stdout.decode("utf-8")
 
 
 def test_qr_ascii():
